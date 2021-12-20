@@ -24,7 +24,7 @@ function onDeviceStateChanged(device, state, stateValue)
 		status = "OFF"
 	end
 	--report = device:name() .. " " .. status
-	report = device:id()
+	local report = device:id()
 	report = report .. ", " .. device:name()
 	report = report .. ", " .. state
 	report = report .. ", " .. stateValue
@@ -33,7 +33,7 @@ function onDeviceStateChanged(device, state, stateValue)
 end
 
 
-function sensorName(valueType)
+function SensorName(valueType)
 	if valueType == TYPE_TEMPERATURE then return 'C'
 	elseif valueType == TYPE_HUMIDITY then return '%'
 	elseif valueType == TYPE_WATT then return 'W'
@@ -52,8 +52,8 @@ function onSensorValueUpdated(device, valueType, value, scale)
 	--report = report .. ", " .. scale
 	--print("Report: " .. report)
 	
-	
-	report = device:id()
+	--[=====[ 
+	local report = device:id()
 	report = report .. ", " ..	device:uuidAsString()
 	report = report .. ", " ..	device:name()
 	report = report .. ", " ..	device:methods()
@@ -63,11 +63,15 @@ function onSensorValueUpdated(device, valueType, value, scale)
 	report = report .. ", " ..	valueType
 	report = report .. ", " ..	value
 	report = report .. ", " ..	scale
+  --]=====]
 	--print("Report: " .. report)
+	print(device:id())
+	print(Dump(device:sensorValues()))
 	
 	if device:name() == "kjhjkh" then --== '' then 
 		print("id "				..	device:id())
 		print("uuid "			..	device:uuidAsString())
+		print("uuid  "			..	tostring(device:uuid()))
 		print("name "			..	device:name())
 		print("methods "		..	device:methods())
 		print("protocol "		..	device:protocol())
@@ -76,6 +80,7 @@ function onSensorValueUpdated(device, valueType, value, scale)
 		print("valueType "		..	valueType)
 		print("value  "			..	value)
 		print("scale  "			..	scale)
+
 	end
 
 	--print("Report: " .. report)
@@ -102,30 +107,81 @@ function onRf433RawData(msg)
 	--local json = tojson(msg)
 	--local ret = sus:send{msg=json}
 	--print(json)
-	print(tostring(msg))
+	--print(tostring(msg))
+	--print(dump(msg))
 end
 
-function tojson(o)
+function Decode(obj)
+  if type(obj) == "nil" then
+    
+  elseif type(obj) == "number" then
+    return string.format("%.19g", value)
+  elseif type(obj) == "string" then
+    return obj
+  elseif type(obj) == "boolean" then
+    return tostring(obj)
+  elseif type(obj) == "table" then
+  elseif type(obj) == "function" then
+    return "not implemented"
+  elseif type(obj) == "thread" then
+    return "not implemented"
+  elseif type(obj) == "userdata" then
+    return DecodeUserData(obj)
+  else
+    return "unknown type: " .. tostring(obj)
+  end
+  
+end
+
+function Dump(msg)
+	if type(msg) == 'table' then
+		local json = "{"
+		for key, value in pairs(msg) do
+			if type(value) == 'userdata' then
+				json = json .. "\""..key.."\":\""..DecodeUserData(value).."\""
+			elseif type(value) == 'string' then
+				json = json .. "\""..key.."\":\""..value.."\","
+			elseif type(value) == 'number' then
+				local tmp = string.format("%.19g", value)
+				json = json .. "\""..key.."\":\""..tmp.."\","
+			end
+		end
+		json = json .. "}"
+		return json
+	end
+end
+
+function DecodeUserData(msg)
+	local value = tostring(msg):gsub("'","\"")
+	value = value:gsub(":%s",":\"")
+	value = value:gsub(",","\",")
+	value = value:gsub("}","\"}")
+	value = value:gsub("}\"","}")
+	return value
+end
+
+function Tojson(o)
 	if type(o) == 'table' then
 		local s = ""
 		for k,v in pairs(o) do
 			if string.len(s) > 0 then s = s .. "," end
 			--print('k: '.. k .. ' , v: ' .. v)
-			s = s .. "\"" .. k .. "\"" .. ":" .. tojson(v)
+			s = s .. "\"" .. k .. "\"" .. ":" .. Tojson(v)
 		end
 		return "{" .. s .. "}"
 	elseif type(o) == 'string' then
-		k = "\"" .. tostring(o) .. "\""
+		local k = "\"" .. tostring(o) .. "\""
 	elseif type(o) == 'userdata' then
-		k = tostring(o):gsub("'","\"")
+		local k = tostring(o):gsub("'","\"")
 		k = k:gsub(":%s",":\"")
 		k = k:gsub(",","\",")
 		k = k:gsub("}","\"}")
 		k = k:gsub("}\"","}")
+    return k
 	else
 		--print(o)
-		k = "\"" .. o .. "\""
-		--k = tostring(o)
+	  local k = "\"" .. o .. "\""
+    --k = tostring(o)
+    return k
 	end
-	return k
-end 
+end
