@@ -1,0 +1,104 @@
+local COMMAND_CLASS_THERMOSTAT_SETPOINT = 0x43
+local SETPOINT_TYPE_HEATING = '1'
+local deviceManager = require "telldus.DeviceManager"
+
+function onInit()
+	local device = deviceManager:findByName("Danfoss")
+	setDanfossTemperature(device, 25)
+end
+
+function setDanfossTemperature(device, temperature)
+	if (device:typeString() ~= 'zwave') then
+		print("Device %s is not a Z-Wave device", device:name())
+		return
+	end
+	-- Get the raw zwave node
+	local zwaveNode = device:zwaveNode()
+	-- Extract the thermostat setpoint command class
+	local cmdClass = zwaveNode:cmdClass(COMMAND_CLASS_THERMOSTAT_SETPOINT)
+	if (cmdClass == nil) then
+		print("Device %s does not support THERMOSTAT_SETPOINT", device:name())
+		return
+	end
+	-- Set new value to be sent the next time the device is awake
+	cmdClass:setSetpoint(SETPOINT_TYPE_HEATING, temperature)
+end
+
+function printBattery(device)
+	local battery = device:battery()
+	print("Battery level: %s", battery.level)
+end
+
+-- File: Avfuktaren.lua
+local deviceManager = require "telldus.DeviceManager"
+local quietHour_22 = 21
+local quietHour_7 = 6
+local humidityStart = 52
+local humidityStop = 48
+local humidityOverride = 60
+local TYPE_HUMIDITY = 2
+local deviceName = "Luftavfuktare"
+local deviceState = 0
+local sensorName = "Basement [Trappa]"
+
+		
+function onInit()
+	print("Starting humidity service")
+	deviceState = deviceManager:findByName(deviceName):state()
+end
+
+
+function onDeviceStateChanged(device, state, stateValue)
+	if device:name() == deviceName then
+		deviceState = state
+	end
+end
+	
+	
+function onSensorValueUpdated(device, valueType, value, scale)
+	if sensorName == device:name() and valueType == TYPE_HUMIDITY then
+		local currentTime = tonumber(os.date("%H"))
+		if deviceState == 1 then
+			if value <= humidityStop or ((currentTime < quietHour_7 or currentTime >= quietHour_22) and value < humidityOverride) then
+				transmitCommand("turnoff", deviceName)
+				--print("turnoff %s, %s has current value %s and time is %s", deviceName, device:name(), value, currentTime)
+			end
+		
+		elseif deviceState == 2 then
+			if (value > humidityStart and (currentTime >= quietHour_7 and currentTime < quietHour_22)) or value >= humidityOverride then
+				transmitCommand("turnon", deviceName)
+				--print("turnon %s, %s has current value %s and time is %s", deviceName, device:name(), value, currentTime)
+			end
+		end
+	end
+end
+
+function transmitCommand(cmd, name)
+	for i=0,2 do
+		deviceManager:findByName(name):command(cmd, nil, name)
+		sleep(2000)
+	end
+end	
+
+
+
+onDeviceAdded(device)
+Called every time a device is added/created
+
+onDeviceRemoved(deviceId)
+Called every time a device is removed. The parameter deviceId is the old device id. The ref to the device is no longer available
+
+onDeviceStateChanged(device, state, stateValue)
+Called every time the state of a device is changed.
+
+onInit()
+Called when the script is loaded
+
+onRf433RawData(msg)
+Signal send on any raw data received from 433 receiver. Please note that the TellStick must contain a receiver for this signal to be sent. Not all models contains a receiver.
+
+onSensorValueUpdated(device, valueType, value, scale)
+Called every time a sensors value is updated.
+
+onZwaveMessageReceived(device, rxStatus, cmdClass, cmd, data)
+Called for every Z-Wave message received from a node in the network. For documentation of the command classes and data, please see official documentation from Sigma Designs (currently only available under NDA).
